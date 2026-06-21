@@ -1,0 +1,20 @@
+/* Recolour grossed-up prices so it's obvious the number was modified.
+   `.hst-grossed` is added by the extension to either the `.a-price` wrapper or,
+   for prices not wrapped in `.a-price`, the inner `aria-hidden` span. */
+.hst-grossed .a-price-whole,
+.hst-grossed .a-price-fraction,
+.hst-grossed .a-price-symbol,
+.hst-grossed .a-offscreen {
+  color: #00695c !important; /* teal — distinct from Amazon's black/red prices */
+}
+
+/* Small muted "w/HST" label appended after the price. */
+.hst-tag {
+  font-size: 0.62em;
+  font-weight: 600;
+  color: #6b6b6b;
+  margin-left: 3px;
+  vertical-align: top;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}

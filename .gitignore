@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Node (only used for ad-hoc local testing; no deps committed)
+node_modules/
+npm-debug.log*
+
+# Packaged extension artifacts
+*.zip
+*.crx
+*.pem

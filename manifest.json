@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Amazon.ca HST Gross-Up (Ontario)",
+  "version": "0.1.0",
+  "description": "Shows Amazon.ca prices with 13% Ontario HST grossed up, so the displayed price reflects what you'll actually pay. Browsing pages only — cart/checkout/orders are left untouched.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.amazon.ca/*"],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
