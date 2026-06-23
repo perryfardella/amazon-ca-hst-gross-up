@@ -1,4 +1,4 @@
-# Amazon.ca HST Gross-Up
+# HST Gross-Up for Amazon.ca
 
 A small Chrome extension that rewrites the prices shown on **amazon.ca** to
 include **13% Ontario HST** — so the number on screen reflects roughly what

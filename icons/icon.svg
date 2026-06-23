@@ -1,0 +1,18 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="28" fill="#00796B"/>
+  <rect x="4" y="4" width="120" height="120" rx="24" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="3"/>
+
+  <!-- Dollar sign -->
+  <g fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="58" y1="22" x2="58" y2="106"/>
+    <path d="M 80 44 C 80 32 67 30 58 30 C 44 30 36 38 36 48 C 36 58 46 62 58 64 C 70 66 80 70 80 80 C 80 90 71 98 58 98 C 49 98 36 96 36 84"/>
+  </g>
+
+  <!-- Diagonal gross-up arrow passing OVER the $ (teal halo creates the gap) -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 22 104 C 50 100 84 82 104 30" stroke="#00796B" stroke-width="20"/>
+    <path d="M 84 29 L 106 25 L 108 47" stroke="#00796B" stroke-width="20"/>
+    <path d="M 22 104 C 50 100 84 82 104 30" stroke="#FFB300" stroke-width="10"/>
+    <path d="M 84 29 L 106 25 L 108 47" stroke="#FFB300" stroke-width="10"/>
+  </g>
+</svg>
