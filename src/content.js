@@ -46,6 +46,7 @@
   const PLAIN_TEXT_PRICE_SELECTORS = [
     ".ewc-subtotal-amount", // cart side-sheet subtotal
     ".ewc-unit-price", // cart side-sheet per-item price
+    ".sc-price", // cart page prices (subtotals, item prices)
   ];
 
   function isExcludedPage() {
