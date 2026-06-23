@@ -39,6 +39,15 @@
     "/cpe/yourpayments",
   ];
 
+  // Containers whose price is plain text (no `.a-price` markup), identified only
+  // by class. Each holds a single "$NNN.NN" amount in a descendant text node —
+  // e.g. the EWC "added to cart" side-sheet on product/cart pages. Extend as
+  // new ones are found.
+  const PLAIN_TEXT_PRICE_SELECTORS = [
+    ".ewc-subtotal-amount", // cart side-sheet subtotal
+    ".ewc-unit-price", // cart side-sheet per-item price
+  ];
+
   function isExcludedPage() {
     const path = location.pathname;
     return EXCLUDED_PATTERNS.some((pat) => path.startsWith(pat));
@@ -56,14 +65,34 @@
     return Number.isFinite(value) ? value : null;
   }
 
-  // The visible price node for the `a-text-price` format: a direct-child
-  // `aria-hidden` span holding the whole price as plain text (e.g. "$619.99"),
-  // with no `.a-price-whole`/`.a-price-fraction` split. Used by strikethrough
-  // list prices and the twister/size-selector prices. Excludes our own tag.
-  function textPriceNode(priceEl) {
-    return priceEl.querySelector(
-      ':scope > span[aria-hidden="true"]:not(.hst-tag)'
-    );
+  // Concatenated text of an element's *own* direct text nodes (ignoring text in
+  // child elements).
+  function ownText(el) {
+    return Array.from(el.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent)
+      .join("");
+  }
+
+  // The element directly holding the visible price text, for markups without the
+  // `.a-price-whole`/`.a-price-fraction` split: the `a-text-price` aria-hidden
+  // span ("$619.99"), or an EWC leaf such as the `<h2>`/`<span>` inside a cart
+  // side-sheet. Returns the deepest descendant whose own text parses to a number
+  // (skipping the hidden a11y span and our own tag).
+  function plainTextLeaf(priceEl) {
+    const candidates = [priceEl, ...priceEl.querySelectorAll("*")];
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      const node = candidates[i];
+      if (
+        node.classList &&
+        (node.classList.contains("a-offscreen") ||
+          node.classList.contains("hst-tag"))
+      ) {
+        continue;
+      }
+      if (numFromText(ownText(node)) != null) return node;
+    }
+    return null;
   }
 
   // Parse the numeric value from a price unit, trying the most reliable source
@@ -71,7 +100,7 @@
   // `.a-offscreen` is sometimes blank or absent):
   //   1. `.a-offscreen` text (e.g. "$24.99")
   //   2. visible `.a-price-whole` + `.a-price-fraction` spans
-  //   3. `a-text-price` plain-text span (e.g. "$619.99")
+  //   3. a plain-text price element (a-text-price span, EWC leaf, etc.)
   function parsePrice(priceEl) {
     const offscreen = priceEl.querySelector(".a-offscreen");
     const fromOffscreen = numFromText(offscreen ? offscreen.textContent : "");
@@ -86,10 +115,22 @@
       if (fromSplit != null) return fromSplit;
     }
 
-    const textNode = textPriceNode(priceEl);
-    if (textNode) return numFromText(textNode.textContent);
+    const leaf = plainTextLeaf(priceEl);
+    if (leaf) return numFromText(ownText(leaf));
 
     return null;
+  }
+
+  // Replace the money amount within a string, preserving the currency symbol and
+  // any surrounding whitespace/text. Prefers a `$`-anchored amount so labels like
+  // "(3 items): $409.99" don't get the item count rewritten.
+  function replacePriceText(text, dollars, cents) {
+    const amount = `${dollars}.${cents}`;
+    if (/\$\s*[\d.,]*\d/.test(text)) {
+      return text.replace(/(\$\s*)[\d.,]*\d/, `$1${amount}`);
+    }
+    if (/\d/.test(text)) return text.replace(/\d[\d.,]*/, amount);
+    return text;
   }
 
   // Returns grossed-up amount in whole cents (integer) to avoid float drift.
@@ -113,7 +154,8 @@
     const dollars = dollarsInt.toLocaleString("en-US"); // group thousands
     const cents = (totalCents % 100).toString().padStart(2, "0");
 
-    // Update the visible price. Two layouts:
+    // Update the visible price + choose the element to recolour and tag.
+    let colorTarget = priceEl;
     const wholeEl = priceEl.querySelector(".a-price-whole");
     if (wholeEl) {
       // Split format: `.a-price-whole` (may contain a child `.a-price-decimal`
@@ -126,12 +168,13 @@
       const fractionEl = priceEl.querySelector(".a-price-fraction");
       if (fractionEl) fractionEl.textContent = cents;
     } else {
-      // `a-text-price` format: whole price is plain text in one span. Replace
-      // the number while preserving the original currency prefix (e.g. "$").
-      const textNode = textPriceNode(priceEl);
-      if (textNode) {
-        const prefix = (textNode.textContent.match(/^[^\d-]*/) || [""])[0];
-        textNode.textContent = `${prefix}${dollars}.${cents}`;
+      // Plain-text format (a-text-price span or EWC leaf): the whole price is
+      // text in a single element. Rewrite the amount in place and recolour/tag
+      // that leaf so it doesn't fight Amazon's own per-element price colour.
+      const leaf = plainTextLeaf(priceEl);
+      if (leaf) {
+        leaf.textContent = replacePriceText(leaf.textContent, dollars, cents);
+        colorTarget = leaf;
       }
     }
 
@@ -144,12 +187,12 @@
     }
 
     // Recolour the price (via CSS class) and append a small "w/HST" tag once.
-    priceEl.classList.add("hst-grossed");
+    colorTarget.classList.add("hst-grossed");
     const tag = document.createElement("span");
     tag.className = "hst-tag";
     tag.textContent = "w/HST";
     tag.setAttribute("aria-hidden", "true");
-    priceEl.appendChild(tag);
+    colorTarget.appendChild(tag);
   }
 
   // Collect the "price unit" elements to rewrite within `root`. Two shapes:
@@ -173,12 +216,19 @@
       units.add(root.parentElement);
     }
 
+    PLAIN_TEXT_PRICE_SELECTORS.forEach((sel) => {
+      if (root.matches?.(sel)) units.add(root);
+    });
+
     if (root.querySelectorAll) {
       root.querySelectorAll(".a-price").forEach((el) => units.add(el));
       root.querySelectorAll(".a-price-whole").forEach((whole) => {
         if (!whole.closest(".a-price") && whole.parentElement) {
           units.add(whole.parentElement);
         }
+      });
+      PLAIN_TEXT_PRICE_SELECTORS.forEach((sel) => {
+        root.querySelectorAll(sel).forEach((el) => units.add(el));
       });
     }
     return units;
