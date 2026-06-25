@@ -13,7 +13,7 @@
   color: #00695c !important;
 }
 
-/* Small muted "w/HST" label appended after the price. */
+/* Small muted "incl. tax" label appended after the price. */
 .hst-tag {
   font-size: 0.62em;
   font-weight: 600;

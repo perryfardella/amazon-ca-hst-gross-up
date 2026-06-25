@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Welcome — Sales Tax Gross-Up for Amazon.ca</title>
+  </head>
+  <body class="onboarding">
+    <h1>Welcome to Sales Tax Gross-Up</h1>
+    <p class="lead">
+      Amazon.ca shows pre-tax prices while you browse — the sales tax only
+      appears at the very end of checkout. This extension folds the tax back into
+      the prices up front, so the number on screen reflects roughly what you'll
+      actually pay.
+    </p>
+    <p class="subtitle">
+      Pick your province or territory below to get started. Prices stay unchanged
+      until you choose, and you can change this any time from the extension icon.
+    </p>
+
+    <label for="province-select">Your province or territory</label>
+    <select id="province-select"></select>
+    <p id="picker-status" class="status"></p>
+    <button id="confirm-btn" class="confirm-btn" data-action="shop" disabled>
+      Start shopping on Amazon.ca →
+    </button>
+
+    <p class="note">
+      This is an estimate for convenience, not an official tax calculation. It
+      applies your province's combined sales-tax rate to <em>every</em> price. A
+      small minority of items (some groceries, etc.) are tax-exempt or taxed
+      differently — the extension doesn't try to carve those out, so it may show
+      them as <em>more expensive</em> than they'll actually be at checkout.
+      Everything happens locally in your browser — no data is collected.
+    </p>
+
+    <script src="taxRates.js"></script>
+    <script src="picker.js"></script>
+  </body>
+</html>

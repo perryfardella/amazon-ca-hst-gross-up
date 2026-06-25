@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Sales Tax Gross-Up</title>
+  </head>
+  <body class="popup">
+    <h1>Sales Tax Gross-Up</h1>
+    <p class="subtitle">
+      Show Amazon.ca prices with your province's sales tax baked in.
+    </p>
+    <label for="province-select">Your province or territory</label>
+    <select id="province-select"></select>
+    <p id="picker-status" class="status"></p>
+    <button id="confirm-btn" class="confirm-btn" data-action="close" disabled>
+      Done
+    </button>
+    <script src="taxRates.js"></script>
+    <script src="picker.js"></script>
+  </body>
+</html>

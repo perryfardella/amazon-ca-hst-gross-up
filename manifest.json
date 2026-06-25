@@ -1,18 +1,31 @@
 {
   "manifest_version": 3,
-  "name": "HST Gross-Up for Amazon.ca",
-  "version": "1.0.0",
-  "description": "Adds 13% Ontario HST to prices on Amazon.ca, so the price you see reflects what you'll actually pay at checkout.",
+  "name": "Sales Tax Gross-Up for Amazon.ca",
+  "version": "1.1.0",
+  "description": "Adds your province's sales tax to prices on Amazon.ca, so the price you see reflects what you'll actually pay at checkout.",
   "homepage_url": "https://github.com/perryfardella/amazon-ca-hst-gross-up",
+  "permissions": ["storage"],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Sales Tax Gross-Up — choose your province",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
   "content_scripts": [
     {
       "matches": ["*://*.amazon.ca/*"],
-      "js": ["src/content.js"],
+      "js": ["src/taxRates.js", "src/content.js"],
       "css": ["src/content.css"],
       "run_at": "document_idle",
       "all_frames": false

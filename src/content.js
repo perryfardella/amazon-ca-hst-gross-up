@@ -1,9 +1,13 @@
 /*
- * Amazon.ca HST Gross-Up
- * ----------------------
- * Rewrites prices shown on amazon.ca browsing pages to include 13% Ontario HST,
- * so the number on screen reflects what you'll actually pay. Every price is
- * grossed up (no attempt to detect which items are truly taxable).
+ * Amazon.ca Sales Tax Gross-Up
+ * ----------------------------
+ * Rewrites prices shown on amazon.ca browsing pages to include the user's
+ * provincial sales tax, so the number on screen reflects what they'll actually
+ * pay. Every price is grossed up (no attempt to detect which items are truly
+ * taxable).
+ *
+ * The rate comes from the province the user picks in the popup, stored in
+ * chrome.storage.sync. Until a province is chosen, prices are left untouched.
  *
  * Only runs on browsing pages (search, product detail, deals, etc.). It bails
  * out on cart / checkout / order / account pages, where Amazon already shows the
@@ -13,12 +17,12 @@
   "use strict";
 
   // --- Config -------------------------------------------------------------
-  // FUTURE: replace this constant with a chrome.storage-backed value to allow
-  // an editable rate / province selection via a popup. Keep it the single
-  // source of truth for the rate.
-  const HST_RATE = 0.13;
+  // Active gross-up rate (e.g. 0.13). Null until a province is loaded from
+  // storage; while null, nothing on the page is modified.
+  let RATE = null;
 
-  const PROCESSED_ATTR = "data-hst-grossed";
+  const PROCESSED_ATTR = "data-hst-grossed"; // marks a unit we've grossed up
+  const ORIG_ATTR = "data-hst-orig"; // original pre-tax value, for re-rendering
 
   // Transactional path prefixes where we must NOT gross up. Matched with
   // String.prototype.startsWith against location.pathname, so e.g.
@@ -136,26 +140,39 @@
 
   // Returns grossed-up amount in whole cents (integer) to avoid float drift.
   function grossUpCents(value) {
-    return Math.round(value * (1 + HST_RATE) * 100);
+    return Math.round(value * (1 + RATE) * 100);
   }
 
   // --- DOM rewriting ------------------------------------------------------
 
-  function processPriceEl(priceEl) {
-    if (priceEl.getAttribute(PROCESSED_ATTR)) return;
+  // Rewrite the visible amount of a single price leaf in place, replacing only
+  // its own text nodes so element children (the a11y span, our tag) survive.
+  function rewriteLeafAmount(leaf, dollars, cents) {
+    const textNodes = Array.from(leaf.childNodes).filter(
+      (n) => n.nodeType === Node.TEXT_NODE
+    );
+    const target = textNodes.find((n) => /\d/.test(n.textContent));
+    if (target) {
+      target.textContent = replacePriceText(target.textContent, dollars, cents);
+    } else if (textNodes[0]) {
+      textNodes[0].textContent = `$${dollars}.${cents}`;
+    } else {
+      leaf.insertBefore(
+        document.createTextNode(`$${dollars}.${cents}`),
+        leaf.firstChild
+      );
+    }
+  }
 
-    const value = parsePrice(priceEl);
-    if (value == null) return;
-
-    // Mark immediately so re-renders / nested scans never double-gross.
-    priceEl.setAttribute(PROCESSED_ATTR, "1");
-
+  // Write the grossed-up value for `value` into `priceEl`'s visible markup and
+  // the hidden a11y text. Idempotent, so it can re-render an already-grossed unit
+  // when the rate changes. Returns the element to recolour/tag.
+  function renderPrice(priceEl, value) {
     const totalCents = grossUpCents(value);
     const dollarsInt = Math.floor(totalCents / 100);
     const dollars = dollarsInt.toLocaleString("en-US"); // group thousands
     const cents = (totalCents % 100).toString().padStart(2, "0");
 
-    // Update the visible price + choose the element to recolour and tag.
     let colorTarget = priceEl;
     const wholeEl = priceEl.querySelector(".a-price-whole");
     if (wholeEl) {
@@ -174,7 +191,7 @@
       // that leaf so it doesn't fight Amazon's own per-element price colour.
       const leaf = plainTextLeaf(priceEl);
       if (leaf) {
-        leaf.textContent = replacePriceText(leaf.textContent, dollars, cents);
+        rewriteLeafAmount(leaf, dollars, cents);
         colorTarget = leaf;
       }
     }
@@ -187,13 +204,38 @@
       offscreenEl.textContent = `${symbol}${dollars}.${cents}`;
     }
 
-    // Recolour the price (via CSS class) and append a small "w/HST" tag once.
+    return colorTarget;
+  }
+
+  function processPriceEl(priceEl) {
+    if (priceEl.getAttribute(PROCESSED_ATTR)) return;
+
+    const value = parsePrice(priceEl);
+    if (value == null) return;
+
+    // Mark immediately so re-renders / nested scans never double-gross, and
+    // stash the original value so a later rate change can re-render from it.
+    priceEl.setAttribute(PROCESSED_ATTR, "1");
+    priceEl.setAttribute(ORIG_ATTR, String(value));
+
+    const colorTarget = renderPrice(priceEl, value);
+
+    // Recolour the price (via CSS class) and append a small tax tag once.
     colorTarget.classList.add("hst-grossed");
     const tag = document.createElement("span");
     tag.className = "hst-tag";
-    tag.textContent = "w/HST";
+    tag.textContent = "incl. tax";
     tag.setAttribute("aria-hidden", "true");
     colorTarget.appendChild(tag);
+  }
+
+  // Re-render every already-grossed unit from its stored original value using the
+  // current RATE. Used when the user switches province while a page is open.
+  function reRenderAll() {
+    document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach((priceEl) => {
+      const orig = parseFloat(priceEl.getAttribute(ORIG_ATTR));
+      if (Number.isFinite(orig)) renderPrice(priceEl, orig);
+    });
   }
 
   // Collect the "price unit" elements to rewrite within `root`. Two shapes:
@@ -293,7 +335,8 @@
   }
 
   function applyForCurrentPage() {
-    if (isExcludedPage()) {
+    // No province chosen yet, or a transactional page — leave prices untouched.
+    if (RATE == null || isExcludedPage()) {
       stopObserving();
       return;
     }
@@ -301,7 +344,39 @@
     startObserving();
   }
 
+  // --- Storage wiring -----------------------------------------------------
+
+  function rateForProvince(code) {
+    const entry = code && globalThis.TAX_RATES[code];
+    return entry ? entry.rate : null;
+  }
+
+  // React to the user choosing / changing their province in the popup.
+  function onProvinceChanged(code) {
+    const newRate = rateForProvince(code);
+    if (newRate == null) return; // unset / unknown — leave the page as-is
+
+    const wasActive = RATE != null;
+    RATE = newRate;
+    if (wasActive) {
+      // Already grossing up: just re-render the existing prices at the new rate.
+      reRenderAll();
+    } else {
+      // First activation on this page: scan and start watching for new prices.
+      applyForCurrentPage();
+    }
+  }
+
   // --- Init ---------------------------------------------------------------
   installUrlChangeListener();
-  applyForCurrentPage();
+
+  chrome.storage.sync.get("province", (data) => {
+    RATE = rateForProvince(data && data.province);
+    applyForCurrentPage();
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync" || !changes.province) return;
+    onProvinceChanged(changes.province.newValue);
+  });
 })();
